@@ -1,0 +1,96 @@
+
+services:
+  # ------------------------------------------------------
+  # RabbitMQ (event broker)
+  # ------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"       # AMQP
+      - "15672:15672"     # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
+    networks:
+      - backend
+
+  # ------------------------------------------------------
+  # MinIO (object storage)
+  # ------------------------------------------------------
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+
+  # ------------------------------------------------------
+  # Postgres (database)
+  # ------------------------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: sessions_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # ------------------------------------------------------
+  # Redis (cache for LLM analyzer)
+  # ------------------------------------------------------
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+
+  # ------------------------------------------------------
+  # DataDog Agent (collect logs & metrics)
+  # ------------------------------------------------------
+  datadog:
+    image: gcr.io/datadoghq/agent:latest
+    container_name: datadog
+    environment:
+      DD_API_KEY: ${DD_API_KEY}
+      DD_SITE: datadoghq.com
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE: "name:datadog"
+      DD_CONTAINER_INCLUDE: "name:.*"
+      DD_PROCESS_AGENT_ENABLED: "false"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    networks:
+      - backend
+    depends_on:
+      - rabbitmq
+      - minio
+      - postgres
+      - redis
+
+networks:
+  backend:
+
+volumes:
+  minio_data:
+  postgres_data:

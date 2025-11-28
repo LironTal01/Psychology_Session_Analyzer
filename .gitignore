@@ -1,1 +1,72 @@
 Assignment 2- Advanced Systems Development Using AI 2025-2026.pdf
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.so
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ---------------------------
+# IDE / Editor
+# ---------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Cursor / JetBrains
+*.iml
+*.cache/
+*.cursor/
+
+# ---------------------------
+# OS specific
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Docker
+# ---------------------------
+*.pid
+*.log
+docker-compose.override.yml
+
+# Containers build folders (if exist)
+upload_service/__pycache__/
+audio_extractor_service/__pycache__/
+transcription_service/__pycache__/
+llm_analyzer_service/__pycache__/
+results_api/__pycache__/
+
+# ---------------------------
+# MinIO storage, videos, audio
+# ---------------------------
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+
+# If MinIO is mounted locally
+minio_data/
+postgres_data/
+
+# ---------------------------
+# Assignment PDF
+# ---------------------------
+Assignment 2- Advanced Systems Development Using AI 2025-2026.pdf
