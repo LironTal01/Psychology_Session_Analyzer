@@ -1,5 +1,29 @@
 
 services:
+
+  # ------------------------------------------------------
+  # Upload Service
+  # ------------------------------------------------------
+  upload_service:
+    build:
+      context: .
+      dockerfile: upload_service/Dockerfile
+    container_name: upload_service
+    ports:
+      - "8000:8000"
+    depends_on:
+        - rabbitmq
+        - minio
+        - postgres
+    networks:
+      - backend
+    environment:
+      MINIO_BUCKET: videos
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_SECURE: false
+
   # ------------------------------------------------------
   # RabbitMQ (event broker)
   # ------------------------------------------------------
@@ -27,7 +51,7 @@ services:
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: admin123
+      MINIO_ROOT_PASSWORD: password123
     volumes:
       - minio_data:/data
     networks:
