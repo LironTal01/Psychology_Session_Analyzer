@@ -50,6 +50,28 @@ services:
       AUDIO_READY_QUEUE: audio_ready
 
   # ------------------------------------------------------
+  # Transcription Service (listens to audio_ready queue)
+  # ------------------------------------------------------
+  transcription_service:
+    build:
+      context: .
+      dockerfile: transcription_service/Dockerfile
+    container_name: transcription_service
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: pass
+      AUDIO_READY_QUEUE: audio_ready
+      TRANSCRIPTION_READY_QUEUE: transcription_ready
+      TRANSCRIPTS_BUCKET: transcripts
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY}
+
+  # ------------------------------------------------------
   # RabbitMQ (event broker)
   # ------------------------------------------------------
   rabbitmq:

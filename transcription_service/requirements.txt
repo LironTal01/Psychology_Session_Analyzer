@@ -1,0 +1,6 @@
+python-dotenv
+pika
+minio
+requests
+
+
