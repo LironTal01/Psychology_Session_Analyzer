@@ -30,6 +30,26 @@ services:
       RABBITMQ_QUEUE: new_videos
 
   # ------------------------------------------------------
+  # Audio Extractor Service (listens to new_videos queue)
+  # ------------------------------------------------------
+  audio_extractor_service:
+    build:
+      context: .
+      dockerfile: audio_extractor_service/Dockerfile
+    container_name: audio_extractor_service
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: pass
+      RABBITMQ_QUEUE: new_videos
+      AUDIO_READY_QUEUE: audio_ready
+
+  # ------------------------------------------------------
   # RabbitMQ (event broker)
   # ------------------------------------------------------
   rabbitmq:

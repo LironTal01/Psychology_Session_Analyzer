@@ -40,12 +40,14 @@ def publish_new_video_message(object_url: str, bucket: str, filename: str):
         credentials=credentials,
     )
 
+    # Connect to RabbitMQ server
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
-    # Ensure the queue exists (idempotent)
+    # Declare the queue (create it if it doesn't exist)
     channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
 
+    # Create the message body
     body = json.dumps(
         {
             "bucket": bucket,
@@ -54,6 +56,7 @@ def publish_new_video_message(object_url: str, bucket: str, filename: str):
         }
     )
 
+    # Publish the message to the queue (make it persistent)
     channel.basic_publish(
         exchange="",
         routing_key=RABBITMQ_QUEUE,
@@ -63,6 +66,7 @@ def publish_new_video_message(object_url: str, bucket: str, filename: str):
         ),
     )
 
+    # Close the connection
     connection.close()
 
 
@@ -75,13 +79,15 @@ async def health():
 async def upload_file(file: UploadFile = File(...)):
     # Save the file temporarily in the container's disk
     upload_id = uuid.uuid4()
-    temp_filename = f"/tmp/{upload_id}_{file.filename}"
+    # Keep object names short and stable: <uuid><original_extension>
+    _, ext = os.path.splitext(file.filename)
+    object_name = f"{upload_id}{ext}"
+    temp_filename = f"/tmp/{object_name}"
 
     with open(temp_filename, "wb") as f:
         f.write(await file.read())
 
     # Upload to MinIO – every upload gets a unique object name
-    object_name = f"{upload_id}_{file.filename}"
     object_url = storage_client.upload_file(
         bucket=MINIO_BUCKET,
         file_path=temp_filename,
