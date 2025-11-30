@@ -3,30 +3,24 @@ import os
 from contextlib import contextmanager
 from typing import Dict, Generator, Optional
 
+# Database client
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 
+# Logger
 logger = logging.getLogger("llm_analyzer_service.database")
 
 
 def _get_connection_params() -> Dict[str, str]:
     """
     Return PostgreSQL connection parameters from environment variables.
-
     Defaults are aligned with the existing `postgres` service in docker-compose:
       - host: postgres
       - port: 5432
       - dbname: sessions_db
       - user: admin
       - password: admin123
-
-    You can override them via:
-      - ANALYSIS_DB_HOST
-      - ANALYSIS_DB_PORT
-      - ANALYSIS_DB_NAME
-      - ANALYSIS_DB_USER
-      - ANALYSIS_DB_PASSWORD
     """
     return {
         "host": os.getenv("ANALYSIS_DB_HOST", "postgres"),
@@ -46,11 +40,15 @@ def _get_connection() -> Generator[psycopg2.extensions.connection, None, None]:
     you ever need to switch connection details or tune parameters, you only
     need to change it here.
     """
+    # Get the connection parameters
     params = _get_connection_params()
+    # Connect to the database
     conn = psycopg2.connect(**params)
+    # Yield the connection
     try:
         yield conn
     finally:
+        # Close the connection
         conn.close()
 
 
@@ -97,7 +95,9 @@ def get_analysis_result(session_id: str) -> Optional[Dict[str, str]]:
     or None if the record does not exist.
     """
     with _get_connection() as conn:
+        # Create a cursor to execute the query
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Execute the query
             cursor.execute(
                 """
                 SELECT
@@ -110,6 +110,7 @@ def get_analysis_result(session_id: str) -> Optional[Dict[str, str]]:
                 """,
                 (session_id,),
             )
+            # Fetch the result
             row = cursor.fetchone()
 
     if row is None:

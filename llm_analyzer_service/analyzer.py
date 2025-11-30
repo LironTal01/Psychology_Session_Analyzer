@@ -180,6 +180,12 @@ def analyze_transcript_for_session(
         session_id=session_id,
     )
 
+    # Remove internal-only metadata fields before persisting the JSON.
+    # The database should contain only clinically relevant analysis data,
+    # not implementation details such as which LLM provider was used.
+    if isinstance(analysis_dict, dict):
+        analysis_dict.pop("provider", None)
+
     # Upload analysis JSON to MinIO.
     analysis_object_url = _upload_analysis_json(
         analysis=analysis_dict,
