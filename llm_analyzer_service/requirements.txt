@@ -1,0 +1,8 @@
+python-dotenv
+pika
+minio
+redis
+openai
+psycopg2-binary
+
+
