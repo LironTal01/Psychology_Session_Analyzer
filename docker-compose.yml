@@ -106,6 +106,30 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
   # ------------------------------------------------------
+  # Viewer Service
+  # ------------------------------------------------------
+  viewer_service:
+    build:
+      context: .
+      dockerfile: viewer_service/Dockerfile
+    container_name: viewer_service
+    ports:
+      - "8001:8000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - backend
+    environment:
+      ANALYSIS_DB_HOST: postgres
+      ANALYSIS_DB_PORT: 5432
+      ANALYSIS_DB_NAME: sessions_db
+      ANALYSIS_DB_USER: admin
+      ANALYSIS_DB_PASSWORD: admin123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  # ------------------------------------------------------
   # RabbitMQ (event broker)
   # ------------------------------------------------------
   rabbitmq:
