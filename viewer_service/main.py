@@ -11,10 +11,9 @@ logger = logging.getLogger("viewer_service.main")
 def create_app() -> FastAPI:
     """
     Create and configure the FastAPI application for the viewer_service.
-
     The app exposes:
-      - GET /health              -> simple health check
-      - GET /videos              -> list all analyzed sessions
+      - GET /health simple health check
+      - GET /videos list all analyzed sessions
       - GET /videos/{session_id} -> full analysis for a session
       - GET /videos/{session_id}/summary -> short summary only
     """

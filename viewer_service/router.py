@@ -26,7 +26,6 @@ def list_videos() -> VideoListResponse:
         created_at_raw = row.get("created_at")
         created_at_str: str | None = None
 
-        # Format the timestamp into a single, human-friendly string:
         # 'YYYY-MM-DD HH:MM:SS' (no microseconds, no timezone).
         if created_at_raw is not None:
             try:
@@ -34,7 +33,7 @@ def list_videos() -> VideoListResponse:
                     created_at_raw.replace(microsecond=0)
                     .isoformat(sep=" ")
                 )
-            except Exception:  # noqa: BLE001
+            except Exception: 
                 created_at_str = None
 
         items.append(
