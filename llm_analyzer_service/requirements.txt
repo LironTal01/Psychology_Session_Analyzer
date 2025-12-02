@@ -2,7 +2,7 @@ python-dotenv
 pika
 minio
 redis
-openai
+google-generativeai
 psycopg2-binary
 
 
