@@ -95,10 +95,12 @@ def get_video_summary(session_id: str) -> Summary:
 
     summary_text = ""
 
-    # By convention, llm_analyzer_service puts a 'summary' field at the top level.
-    # If that field is missing, we fall back to something safe and generic.
+    # We first look for a generic 'summary' field.
+    # For compatibility with the llm_analyzer_service prompt schema,
+    # we also support 'session_summary' as an alternative key.
+    # If neither is present, we fall back to something safe and generic.
     if isinstance(analysis_json, dict):
-        raw_summary = analysis_json.get("summary")
+        raw_summary = analysis_json.get("summary") or analysis_json.get("session_summary")
         if isinstance(raw_summary, str):
             summary_text = raw_summary.strip()
 
