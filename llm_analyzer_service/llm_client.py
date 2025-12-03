@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -204,25 +205,90 @@ def _merge_analyses(analyses: list[Dict[str, Any]], session_id: str) -> Dict[str
         mood = analysis.get("mood_triggers") or {}
         positive_triggers.extend(mood.get("positive_triggers") or [])
         negative_triggers.extend(mood.get("negative_triggers") or [])
-    if positive_triggers or negative_triggers:
+
+    # Clean and deduplicate mood triggers to avoid empty/duplicate entries
+    def _clean_triggers(triggers: list[dict]) -> list[dict]:
+        cleaned: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for item in triggers:
+            if not isinstance(item, dict):
+                continue
+            trig = str(item.get("trigger") or "").strip()
+            evidence = str(item.get("evidence_quote") or "").strip()
+            if not trig and not evidence:
+                continue
+            key = (trig, evidence)
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(
+                {
+                    "trigger": trig,
+                    "evidence_quote": evidence,
+                }
+            )
+        return cleaned
+
+    positive_triggers_clean = _clean_triggers(positive_triggers)
+    negative_triggers_clean = _clean_triggers(negative_triggers)
+
+    if positive_triggers_clean or negative_triggers_clean:
         merged["mood_triggers"] = {
-            "positive_triggers": positive_triggers,
-            "negative_triggers": negative_triggers,
+            "positive_triggers": positive_triggers_clean,
+            "negative_triggers": negative_triggers_clean,
         }
 
     # homework_assignments
     homework = []
     for analysis in analyses:
         homework.extend(analysis.get("homework_assignments") or [])
+
+    # Filter out empty homework items (both fields empty or whitespace)
+    # and deduplicate by (task, evidence_quote).
     if homework:
-        merged["homework_assignments"] = homework
+        cleaned_homework: list[Dict[str, Any]] = []
+        seen_hw: set[tuple[str, str]] = set()
+        for item in homework:
+            if not isinstance(item, dict):
+                continue
+            task = str(item.get("task") or "").strip()
+            evidence = str(item.get("evidence_quote") or "").strip()
+            if not task and not evidence:
+                continue
+            key = (task, evidence)
+            if key in seen_hw:
+                continue
+            seen_hw.add(key)
+            cleaned_homework.append(
+                {
+                    "task": task,
+                    "evidence_quote": evidence,
+                }
+            )
+
+        if cleaned_homework:
+            merged["homework_assignments"] = cleaned_homework
 
     # next_session_followup
     followup = []
     for analysis in analyses:
         followup.extend(analysis.get("next_session_followup") or [])
+
+    # Remove empty strings and deduplicate while preserving order
     if followup:
-        merged["next_session_followup"] = followup
+        cleaned_followup: list[str] = []
+        seen_followup: set[str] = set()
+        for item in followup:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            if text in seen_followup:
+                continue
+            seen_followup.add(text)
+            cleaned_followup.append(text)
+
+        if cleaned_followup:
+            merged["next_session_followup"] = cleaned_followup
 
     # addiction_history: OR over has_history, union of substances, first evidence_quote
     has_history = False
@@ -244,6 +310,95 @@ def _merge_analyses(analyses: list[Dict[str, Any]], session_id: str) -> Dict[str
     }
 
     return merged
+
+
+def _refine_summary_and_followup_with_llm(
+    session_summary: str | None,
+    next_session_followup: list[str] | None,
+    session_id: str,
+    model_name: str,
+    client: OpenAI,
+) -> tuple[str | None, list[str] | None]:
+    """
+    Refine session_summary and next_session_followup using the LLM.
+    """
+    has_summary = bool(session_summary)
+    has_followup = bool(next_session_followup)
+    if not (has_summary or has_followup):
+        return session_summary, next_session_followup
+    
+    system_prompt = (
+        "You are a clinical psychology assistant that compresses an existing summary.\n"
+        "You will receive:\n"
+        "  - `session_summary`: a long clinical narrative.\n"
+        "  - `next_session_followup`: a list of bullet-style follow-up items.\n\n"
+        "Your tasks:\n"
+        "  1) Rewrite `session_summary` as a concise 3–6 sentence clinical summary,\n"
+        "     removing repetitions but preserving the main themes.\n"
+        "  2) Rewrite `next_session_followup` as a list of at most 10 bullet-style\n"
+        "     strings, merging or dropping overlapping items while keeping key ideas.\n\n"
+        "Return ONLY a single JSON object of the form:\n"
+        "{\n"
+        "  \"session_summary\": \"...\",\n"
+        "  \"next_session_followup\": [\"...\", \"...\"]\n"
+        "}\n"
+        "If one of the inputs is missing, simply copy the other without changes."
+    )
+
+    payload: Dict[str, Any] = {}
+    if has_summary:
+        payload["session_summary"] = session_summary
+    if has_followup:
+        payload["next_session_followup"] = next_session_followup
+
+    user_content = (
+        "Here is the current summary/follow-up for session_id="
+        f"{session_id}.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False)}"
+    )
+
+    try:
+        completion = client.chat.completions.create(
+            model=model_name,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "LLM refinement of summary/followup failed for session_id=%s: %r",
+            session_id,
+            exc,
+        )
+        return session_summary, next_session_followup
+
+    content = completion.choices[0].message.content or "{}"
+
+    try:
+        refined = json.loads(content)
+    except json.JSONDecodeError:
+        logger.warning(
+            "LLM refinement returned non-JSON content for session_id=%s; "
+            "falling back to original summary/followup",
+            session_id,
+        )
+        return session_summary, next_session_followup
+
+    if not isinstance(refined, dict):
+        return session_summary, next_session_followup
+
+    new_summary = refined.get("session_summary", session_summary)
+    new_followup = refined.get("next_session_followup", next_session_followup)
+
+    # Type safety: only accept if of expected types.
+    if not isinstance(new_summary, str):
+        new_summary = session_summary
+    if not (isinstance(new_followup, list) and all(isinstance(x, str) for x in new_followup or [])):
+        new_followup = next_session_followup
+
+    return new_summary, new_followup
 
 
 def analyze_transcript_with_llm(transcript_text: str, session_id: str) -> Dict[str, Any]:
@@ -347,6 +502,25 @@ def analyze_transcript_with_llm(transcript_text: str, session_id: str) -> Dict[s
         len(partial_analyses),
         session_id,
     )
+    
+    # Refine the summary and followup with the LLM to avoid overly long/duplicated content.
+    summary_before = merged.get("session_summary")
+    followup_before = merged.get("next_session_followup")
+
+    new_summary, new_followup = _refine_summary_and_followup_with_llm(
+        session_summary=summary_before,
+        next_session_followup=followup_before,
+        session_id=session_id,
+        model_name=model_name,
+        client=client,
+    )
+
+    if new_summary is not None:
+        merged["session_summary"] = new_summary
+    if new_followup is not None:
+        merged["next_session_followup"] = new_followup
+
+    # Return the merged analysis json object 
     return merged
 
 
