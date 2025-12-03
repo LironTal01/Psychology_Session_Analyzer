@@ -14,8 +14,6 @@ def _build_system_prompt() -> str:
     """
     Build the system-level instructions for the LLM.
 
-    This text explains to the model what kind of analysis we expect
-    (e.g., who is speaking, topics, emotions, risk factors).
     """
     return (
         """You are an expert clinical psychology assistant analyzing a therapy session transcript.
@@ -105,6 +103,7 @@ def _split_transcript_into_chunks(transcript_text: str) -> list[str]:
         chunks.append(transcript_text[start:end])
         start = end
 
+    # Log the number of chunks and the max characters per chunk
     logger.info(
         "Transcript split into %d chunks using max_chars_per_chunk=%d",
         len(chunks),
@@ -119,9 +118,9 @@ def _call_openai_for_text(
     model_name: str,
     client: OpenAI,
 ) -> Dict[str, Any] | None:
+
     """
     Call OpenAI Chat Completions API for a single text chunk and parse JSON.
- 
     Returns a dict on success, or None if the response is not valid JSON.
     """
     system_prompt = _build_system_prompt()
@@ -166,15 +165,16 @@ def _merge_analyses(analyses: list[Dict[str, Any]], session_id: str) -> Dict[str
     if not analyses:
         raise ValueError(f"No analyses to merge for session_id={session_id}")
 
+    # If there is only one chunk, return the analysis for that chunk
     if len(analyses) == 1:
         return analyses[0]
 
     merged: Dict[str, Any] = {}
-
-    # speakers: union, deduplicated
+    # if the same speaker is mentioned in multiple chunks, only include it once
     seen_speakers = set()
     speakers_result = []
-    for analysis in analyses:
+    # loop through each chunk and add the speakers to the result if they are not already in the result
+    for analysis in analyses: 
         for sp in (analysis.get("speakers") or []):
             key = (sp.get("id"), sp.get("role"), sp.get("description"))
             if key not in seen_speakers:
@@ -238,13 +238,11 @@ def _merge_analyses(analyses: list[Dict[str, Any]], session_id: str) -> Dict[str
             "negative_triggers": negative_triggers_clean,
         }
 
-    # homework_assignments
+    # Filter out empty homework items (both fields empty or whitespace)
     homework = []
     for analysis in analyses:
         homework.extend(analysis.get("homework_assignments") or [])
 
-    # Filter out empty homework items (both fields empty or whitespace)
-    # and deduplicate by (task, evidence_quote).
     if homework:
         cleaned_homework: list[Dict[str, Any]] = []
         seen_hw: set[tuple[str, str]] = set()
