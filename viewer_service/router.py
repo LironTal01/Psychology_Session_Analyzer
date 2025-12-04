@@ -3,7 +3,6 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from . import cache
 from . import database
 from .models import AnalysisResult, Summary, VideoListItem, VideoListResponse
 
@@ -47,19 +46,7 @@ def list_videos() -> VideoListResponse:
 
 @router.get("/{session_id}", response_model=AnalysisResult)
 def get_video_analysis(session_id: str) -> AnalysisResult:
-    """
-    Return the full analysis JSON for a specific session.
-
-    This endpoint:
-      - checks Redis cache first
-      - falls back to PostgreSQL if not cached
-      - parses the stored analysis_json into a Python dict
-    """
-    # Try cache first
-    cached = cache.get_cached_analysis(session_id)
-    if cached is not None:
-        return AnalysisResult(**cached)
-
+    """Return the full analysis JSON for a specific session."""
     row = database.get_analysis(session_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -72,12 +59,7 @@ def get_video_analysis(session_id: str) -> AnalysisResult:
             detail=f"Stored analysis_json is missing or invalid for session_id={session_id}",
         ) from exc
 
-    result = AnalysisResult(session_id=row["session_id"], analysis=analysis_dict)
-
-    # Store in cache for next time
-    cache.set_cached_analysis(session_id, result.dict())
-
-    return result
+    return AnalysisResult(session_id=row["session_id"], analysis=analysis_dict)
 
 
 @router.get("/{session_id}/summary", response_model=Summary)
@@ -95,10 +77,7 @@ def get_video_summary(session_id: str) -> Summary:
 
     summary_text = ""
 
-    # We first look for a generic 'summary' field.
-    # For compatibility with the llm_analyzer_service prompt schema,
-    # we also support 'session_summary' as an alternative key.
-    # If neither is present, we fall back to something safe and generic.
+    # Prefer 'summary', fall back to 'session_summary' if needed.
     if isinstance(analysis_json, dict):
         raw_summary = analysis_json.get("summary") or analysis_json.get("session_summary")
         if isinstance(raw_summary, str):
