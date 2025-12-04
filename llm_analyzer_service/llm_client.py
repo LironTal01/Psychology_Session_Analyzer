@@ -1,11 +1,12 @@
 import json
 import logging
-import os
 import re
 from typing import Any, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
+
+from common.config import openai as openai_config
 
 logger = logging.getLogger("llm_analyzer_service.llm_client")
 
@@ -402,13 +403,13 @@ def _refine_summary_and_followup_with_llm(
 def analyze_transcript_with_llm(transcript_text: str, session_id: str) -> Dict[str, Any]:
     """Analyze a transcript using OpenAI, with chunking and merging.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = openai_config.api_key
     if not api_key:
         raise ValueError(
             "OPENAI_API_KEY is not set. Please set the OPENAI_API_KEY environment variable."
         )
 
-    model_name = os.getenv("OPENAI_MODEL", "gpt-5-nano")
+    model_name = openai_config.model
     client = OpenAI(api_key=api_key)
 
     chunks = _split_transcript_into_chunks(transcript_text)

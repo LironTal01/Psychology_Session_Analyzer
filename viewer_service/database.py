@@ -1,25 +1,24 @@
 import logging
-import os
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from common.config import database
+
 
 logger = logging.getLogger("viewer_service.database")
 
 
 def _get_connection_params() -> Dict[str, str]:
-    """
-    Return PostgreSQL connection parameters for the viewer_service.
-    """
+    """Return PostgreSQL connection parameters for the shared analysis DB."""
     return {
-        "host": os.getenv("ANALYSIS_DB_HOST", "postgres"),
-        "port": os.getenv("ANALYSIS_DB_PORT", "5432"),
-        "dbname": os.getenv("ANALYSIS_DB_NAME", "sessions_db"),
-        "user": os.getenv("ANALYSIS_DB_USER", "admin"),
-        "password": os.getenv("ANALYSIS_DB_PASSWORD", "admin123"),
+        "host": database.host,
+        "port": database.port,
+        "dbname": database.name,
+        "user": database.user,
+        "password": database.password,
     }
 
 

@@ -6,22 +6,12 @@ import time
 from typing import Any, Dict
 
 import pika
+from common.config import rabbitmq
 
 from .analyzer import analyze_transcript_for_session
 
 
 logger = logging.getLogger("llm_analyzer_service.consumer")
-
-
-# RabbitMQ configuration (mirrors other services' style)
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "user")
-RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "pass")
-RABBITMQ_TRANSCRIPTION_READY_QUEUE = os.getenv(
-    "TRANSCRIPTION_READY_QUEUE", "transcription_ready"
-)
-RABBITMQ_ANALYSIS_READY_QUEUE = os.getenv("ANALYSIS_READY_QUEUE", "analysis_ready")
 
 
 def publish_analysis_ready_event(
@@ -44,22 +34,23 @@ def publish_analysis_ready_event(
         "session_id": session_id,
     }
 
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
     parameters = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
+        host=rabbitmq.host,
+        port=rabbitmq.port,
         credentials=credentials,
     )
 
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
-    # Ensure the destination queue exists (idempotent).
-    channel.queue_declare(queue=RABBITMQ_ANALYSIS_READY_QUEUE, durable=True)
+    channel.queue_declare(
+        queue=rabbitmq.analysis_ready_queue, durable=True
+    )
 
     channel.basic_publish(
         exchange="",
-        routing_key=RABBITMQ_ANALYSIS_READY_QUEUE,
+        routing_key=rabbitmq.analysis_ready_queue,
         body=json.dumps(payload).encode("utf-8"),
         properties=pika.BasicProperties(delivery_mode=2),
     )
@@ -68,7 +59,7 @@ def publish_analysis_ready_event(
 
     logger.info(
         "Published analysis_ready event to %s: %s",
-        RABBITMQ_ANALYSIS_READY_QUEUE,
+        rabbitmq.analysis_ready_queue,
         payload,
     )
 
@@ -133,28 +124,26 @@ def consume_messages() -> None:
     """
     while True:
         try:
-            credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+            credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
             parameters = pika.ConnectionParameters(
-                host=RABBITMQ_HOST,
-                port=RABBITMQ_PORT,
+                host=rabbitmq.host,
+                port=rabbitmq.port,
                 credentials=credentials,
                 heartbeat=30,
             )
 
             logger.info(
                 "Connecting to RabbitMQ at %s:%s, queue=%s",
-                RABBITMQ_HOST,
-                RABBITMQ_PORT,
-                RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+                rabbitmq.host,
+                rabbitmq.port,
+                rabbitmq.transcription_ready_queue,
             )
 
-            # Create a blocking connection to RabbitMQ.
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
 
-            # Ensure the source queue exists (idempotent).
             channel.queue_declare(
-                queue=RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+                queue=rabbitmq.transcription_ready_queue,
                 durable=True,
             )
 
@@ -173,14 +162,14 @@ def consume_messages() -> None:
                     )
 
             channel.basic_consume(
-                queue=RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+                queue=rabbitmq.transcription_ready_queue,
                 on_message_callback=_callback,
                 auto_ack=False,
             )
 
             logger.info(
                 "Listening on queue %s. To exit, stop the container.",
-                RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+                rabbitmq.transcription_ready_queue,
             )
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as exc:

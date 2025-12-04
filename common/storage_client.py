@@ -5,6 +5,8 @@ from typing import Final
 from minio import Minio
 from minio.error import S3Error
 
+from .config import minio as minio_config
+
 
 class StorageClient:
     """
@@ -17,27 +19,15 @@ class StorageClient:
     - return a stable object URL that other services can pass around
     """
 
-    _DEFAULT_ENDPOINT: Final[str] = "minio:9000"
-    _DEFAULT_ACCESS_KEY: Final[str] = "admin"
-    _DEFAULT_SECRET_KEY: Final[str] = "password123"
-
     def __init__(self) -> None:
-        endpoint = os.getenv("MINIO_ENDPOINT", self._DEFAULT_ENDPOINT)
-        access_key = os.getenv("MINIO_ACCESS_KEY", self._DEFAULT_ACCESS_KEY)
-        secret_key = os.getenv("MINIO_SECRET_KEY", self._DEFAULT_SECRET_KEY)
-
-        # Represent security as a boolean, driven by env but defaulting to HTTP.
-        secure_env = os.getenv("MINIO_SECURE", "false").lower()
-        secure = secure_env in {"1", "true", "yes", "on"}
-
-        self._endpoint = endpoint
-        self._secure = secure
+        self._endpoint: Final[str] = minio_config.endpoint
+        self._secure: Final[bool] = minio_config.secure
 
         self.client = Minio(
-            endpoint=endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
-            secure=secure,
+            endpoint=minio_config.endpoint,
+            access_key=minio_config.access_key,
+            secret_key=minio_config.secret_key,
+            secure=minio_config.secure,
         )
 
     def create_bucket_if_not_exists(self, bucket_name: str) -> None:

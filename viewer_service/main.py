@@ -1,5 +1,4 @@
 import logging
-
 from fastapi import FastAPI
 
 from .router import router as videos_router

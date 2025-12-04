@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from common.storage_client import StorageClient
+from common.config import rabbitmq
 import os
 import json
 import pika
@@ -13,48 +14,35 @@ Files are stored in MinIO and later processed by downstream services.
 """,
 )
 
-# Environment variables for the MinIO connection
+# MinIO connection
 storage_client = StorageClient()
 
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "videos")
 storage_client.create_bucket_if_not_exists(MINIO_BUCKET)
 
-# Environment variables for the RabbitMQ connection
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "user")
-RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "pass")
-RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "new_videos")
-
 
 def publish_new_video_message(object_url: str, bucket: str, filename: str) -> None:
-    """
-    Publish a 'new video uploaded' event to RabbitMQ so downstream
-    services can start processing it.
-    """
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    """Publish a 'new video uploaded' event to RabbitMQ."""
+
+    credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
     parameters = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
+        host=rabbitmq.host,
+        port=rabbitmq.port,
         credentials=credentials,
     )
 
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
-    channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
+    channel.queue_declare(queue=rabbitmq.new_videos_queue, durable=True)
 
     body = json.dumps(
-        {
-            "bucket": bucket,
-            "filename": filename,
-            "object_url": object_url,
-        }
+        {"bucket": bucket, "filename": filename, "object_url": object_url}
     )
 
     channel.basic_publish(
         exchange="",
-        routing_key=RABBITMQ_QUEUE,
+        routing_key=rabbitmq.new_videos_queue,
         body=body.encode("utf-8"),
         properties=pika.BasicProperties(delivery_mode=2),
     )

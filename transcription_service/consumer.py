@@ -6,20 +6,11 @@ import time
 from typing import Any, Dict
 
 import pika
+from common.config import rabbitmq
 
 from .transcription_worker import process_audio_ready_message
 
-# Logger for the transcription_service.consumer module
 logger = logging.getLogger("transcription_service.consumer")
-
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "user")
-RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "pass")
-RABBITMQ_AUDIO_READY_QUEUE = os.getenv("AUDIO_READY_QUEUE", "audio_ready")
-RABBITMQ_TRANSCRIPTION_READY_QUEUE = os.getenv(
-    "TRANSCRIPTION_READY_QUEUE", "transcription_ready"
-)
 
 
 def publish_transcription_ready_event(
@@ -40,24 +31,24 @@ def publish_transcription_ready_event(
     }
 
     # Create the credentials for the RabbitMQ connection
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
     parameters = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
+        host=rabbitmq.host,
+        port=rabbitmq.port,
         credentials=credentials,
     )
 
-    # Create the connection to the RabbitMQ server
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
-    # Ensure the destination queue exists
-    channel.queue_declare(queue=RABBITMQ_TRANSCRIPTION_READY_QUEUE, durable=True)
+    channel.queue_declare(
+        queue=rabbitmq.transcription_ready_queue, durable=True
+    )
 
     # Publish the transcription_ready event to the RabbitMQ server
     channel.basic_publish(
         exchange="",
-        routing_key=RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+        routing_key=rabbitmq.transcription_ready_queue,
         body=json.dumps(payload).encode("utf-8"),
         properties=pika.BasicProperties(delivery_mode=2),
     )
@@ -113,26 +104,27 @@ def consume_messages() -> None:
     """
     while True:
         try:
-            credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+            credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
             parameters = pika.ConnectionParameters(
-                host=RABBITMQ_HOST,
-                port=RABBITMQ_PORT,
+                host=rabbitmq.host,
+                port=rabbitmq.port,
                 credentials=credentials,
                 heartbeat=30,
             )
 
             logger.info(
                 "Connecting to RabbitMQ at %s:%s, queue=%s",
-                RABBITMQ_HOST,
-                RABBITMQ_PORT,
-                RABBITMQ_AUDIO_READY_QUEUE,
+                rabbitmq.host,
+                rabbitmq.port,
+                rabbitmq.audio_ready_queue,
             )
 
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
 
-            # Ensure the source queue exists to avoid duplicates
-            channel.queue_declare(queue=RABBITMQ_AUDIO_READY_QUEUE, durable=True)
+            channel.queue_declare(
+                queue=rabbitmq.audio_ready_queue, durable=True
+            )
 
             # Fair dispatch - one message at a time per worker
             channel.basic_qos(prefetch_count=1)
@@ -150,9 +142,8 @@ def consume_messages() -> None:
                         exc,
                     )
 
-            # Consume the messages from the audio_ready queue
             channel.basic_consume(
-                queue=RABBITMQ_AUDIO_READY_QUEUE,
+                queue=rabbitmq.audio_ready_queue,
                 on_message_callback=_callback,
                 auto_ack=False,
             )
