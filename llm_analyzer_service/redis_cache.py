@@ -10,12 +10,7 @@ logger = logging.getLogger("llm_analyzer_service.redis_cache")
 
 
 def _get_redis_client() -> Optional[redis.Redis]:
-    """
-    Create and return a Redis client using environment configuration.
-
-    If Redis is not reachable or misconfigured, this function logs a warning
-    and returns None so that callers can gracefully fall back to no caching.
-    """
+    """Return a Redis client or None if Redis is not reachable."""
     host = os.getenv("REDIS_HOST", "redis")
     port = int(os.getenv("REDIS_PORT", "6379"))
     db = int(os.getenv("REDIS_DB", "0"))

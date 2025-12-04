@@ -91,7 +91,7 @@ def _split_transcript_into_chunks(transcript_text: str) -> list[str]:
     Split a long transcript into character-based chunks so that each chunk
     safely fits into the LLM context window.
     """
-    max_chars_per_chunk = 75000
+    max_chars_per_chunk = 120000
     text_len = len(transcript_text)
     if text_len <= max_chars_per_chunk:
         return [transcript_text]

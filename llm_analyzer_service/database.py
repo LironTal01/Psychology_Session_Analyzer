@@ -13,15 +13,7 @@ logger = logging.getLogger("llm_analyzer_service.database")
 
 
 def _get_connection_params() -> Dict[str, str]:
-    """
-    Return PostgreSQL connection parameters from environment variables.
-    Defaults are aligned with the existing `postgres` service in docker-compose:
-      - host: postgres
-      - port: 5432
-      - dbname: sessions_db
-      - user: admin
-      - password: admin123
-    """
+    """Return PostgreSQL connection parameters from environment variables."""
     return {
         "host": os.getenv("ANALYSIS_DB_HOST", "postgres"),
         "port": os.getenv("ANALYSIS_DB_PORT", "5432"),
@@ -33,14 +25,7 @@ def _get_connection_params() -> Dict[str, str]:
 
 @contextmanager
 def _get_connection() -> Generator[psycopg2.extensions.connection, None, None]:
-    """
-    Context manager that yields a PostgreSQL connection and ensures it is closed.
-
-    All database access for this microservice goes through this helper, so if
-    you ever need to switch connection details or tune parameters, you only
-    need to change it here.
-    """
-    # Get the connection parameters
+    """Yield a PostgreSQL connection and ensure it is closed."""
     params = _get_connection_params()
     # Connect to the database
     conn = psycopg2.connect(**params)
@@ -53,13 +38,7 @@ def _get_connection() -> Generator[psycopg2.extensions.connection, None, None]:
 
 
 def init_db() -> None:
-    """
-    Initialize the PostgreSQL database by creating tables if needed.
-
-    This function creates the `session_analysis` table if it does not exist.
-    It is safe to call multiple times (idempotent) and is invoked from the
-    microservice entrypoint before consuming any messages.
-    """
+    """Create the session_analyses table if it does not exist."""
     with _get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -84,16 +63,7 @@ def init_db() -> None:
 
 
 def get_analysis_result(session_id: str) -> Optional[Dict[str, str]]:
-    """
-    Retrieve a stored analysis record for the given session_id, if any.
-
-    Returns a dict with keys:
-      - session_id
-      - transcript_object_url
-      - analysis_object_url
-      - analysis_json
-    or None if the record does not exist.
-    """
+    """Return a stored analysis record for the session_id, or None if missing."""
     with _get_connection() as conn:
         # Create a cursor to execute the query
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -130,13 +100,7 @@ def store_analysis_result(
     analysis_object_url: str,
     analysis_json: str,
 ) -> None:
-    """
-    Insert or update an analysis record for the given session_id.
-
-    Uses PostgreSQL's `ON CONFLICT` to implement an upsert on `session_id`:
-      - if the row does not exist, it is inserted
-      - if it exists, it is updated with the new data.
-    """
+    """Insert or update an analysis record for the given session_id."""
     with _get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
