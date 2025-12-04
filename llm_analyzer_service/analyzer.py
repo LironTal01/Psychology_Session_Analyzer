@@ -1,11 +1,10 @@
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
-
 from common.storage_client import StorageClient
-
 from .database import store_analysis_result, get_analysis_result
 from .llm_client import analyze_transcript_with_llm
 from .redis_cache import get_analysis_from_cache, store_analysis_in_cache
@@ -20,13 +19,6 @@ storage_client = StorageClient()
 def _parse_object_url(object_url: str) -> Tuple[str, str]:
     """
     Parse a transcript object URL into (bucket, object_name).
-
-    This helper supports both styles used in the system:
-      - Internal HTTP/S URLs created by StorageClient._build_object_url:
-            http(s)://minio:9000/<bucket>/<object_name>
-      - Logical S3-style URLs published on RabbitMQ:
-            s3://<bucket>/<object_name>
-
     Returning (bucket, object_name) lets us call StorageClient.download_file
     without caring which style was used upstream.
     """
@@ -54,7 +46,6 @@ def _parse_object_url(object_url: str) -> Tuple[str, str]:
 def _download_transcript(transcript_object_url: str, work_dir: Path) -> Path:
     """
     Download the transcript JSON from MinIO into a local path.
-
     Returns the local Path to the downloaded JSON file.
     """
     bucket, object_name = _parse_object_url(transcript_object_url)
@@ -82,7 +73,6 @@ def _upload_analysis_json(
 ) -> str:
     """
     Save the analysis dictionary locally and upload it as a JSON file to MinIO.
-
     Returns the internal object URL produced by StorageClient.
     """
     object_name = f"session_{session_id}_analysis.json"
@@ -115,9 +105,6 @@ def _upload_analysis_json(
 def analyze_transcript_for_session(
     session_id: str,
     transcript_object_url: str,
-    *,
-    work_dir: Path | None = None,
-    analysis_bucket_env_var: str = "ANALYSIS_BUCKET",
 ) -> Tuple[Dict[str, Any], str]:
     """
     High-level orchestration function for LLM analysis of a transcript.
@@ -132,29 +119,23 @@ def analyze_transcript_for_session(
     Args:
         session_id: Stable identifier for the therapy session.
         transcript_object_url: Internal/s3 URL pointing to the transcript JSON.
-        work_dir: Optional temporary directory for local files (defaults to /tmp).
-        analysis_bucket_env_var: Name of the env var that holds the analysis bucket.
 
     Returns:
         (analysis_dict, analysis_object_url)
     """
-    import os
-
-    if work_dir is None:
-        work_dir = Path(os.getenv("WORK_DIR", "/tmp"))
 
     # Create the analysis bucket if it doesn't exist
-    analysis_bucket = os.getenv(analysis_bucket_env_var, "analyses")
+    analysis_bucket = os.getenv("ANALYSIS_BUCKET", "analyses")
     storage_client.create_bucket_if_not_exists(analysis_bucket)
+
+    # Working directory for temporary files (transcript + analysis JSON)
+    work_dir = Path(os.getenv("WORK_DIR", "/tmp"))
 
     # Check Redis cache for an existing analysis for this session_id
     logger.info("Checking Redis cache for session_id=%s", session_id)
     cached = get_analysis_from_cache(session_id)
     if cached is not None:
         logger.info("Cache hit for session_id=%s", session_id)
-        # We do not necessarily know the MinIO URL here; the caller may recompute it
-        # or simply reuse previously stored metadata. For consistency with the DB,
-        # we still try to fetch it from the database if present.
         db_row = get_analysis_result(session_id)
         analysis_url = db_row["analysis_object_url"] if db_row else ""
         return cached, analysis_url
@@ -181,8 +162,6 @@ def analyze_transcript_for_session(
     )
 
     # Remove internal-only metadata fields before persisting the JSON.
-    # The database should contain only clinically relevant analysis data,
-    # not implementation details such as which LLM provider was used.
     if isinstance(analysis_dict, dict):
         analysis_dict.pop("provider", None)
 

@@ -148,6 +148,7 @@ def consume_messages() -> None:
                 RABBITMQ_TRANSCRIPTION_READY_QUEUE,
             )
 
+            # Create a blocking connection to RabbitMQ.
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
 
@@ -164,7 +165,7 @@ def consume_messages() -> None:
                 try:
                     handle_message(body)
                     ch.basic_ack(delivery_tag=method.delivery_tag)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:  
                     logger.exception(
                         "Error while handling transcription_ready message, "
                         "leaving it unacked so it can be retried: %r",
@@ -195,7 +196,7 @@ def consume_messages() -> None:
             except Exception:
                 pass
             sys.exit(0)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  
             logger.exception(
                 "Unexpected error in consumer loop: %r, retrying in 5 seconds...",
                 exc,

@@ -13,21 +13,6 @@ logger = logging.getLogger("viewer_service.database")
 def _get_connection_params() -> Dict[str, str]:
     """
     Return PostgreSQL connection parameters for the viewer_service.
-
-    By default these align with the existing `postgres` service used
-    by llm_analyzer_service:
-      - host: postgres
-      - port: 5432
-      - dbname: sessions_db
-      - user: admin
-      - password: admin123
-
-    You can override any of these via:
-      - ANALYSIS_DB_HOST
-      - ANALYSIS_DB_PORT
-      - ANALYSIS_DB_NAME
-      - ANALYSIS_DB_USER
-      - ANALYSIS_DB_PASSWORD
     """
     return {
         "host": os.getenv("ANALYSIS_DB_HOST", "postgres"),
@@ -81,7 +66,6 @@ def get_all_sessions() -> List[Dict[str, Any]]:
 def get_analysis(session_id: str) -> Optional[Dict[str, Any]]:
     """
     Return the full analysis row for a specific session_id, or None if not found.
-
     The returned dict has the columns:
       - session_id
       - transcript_object_url

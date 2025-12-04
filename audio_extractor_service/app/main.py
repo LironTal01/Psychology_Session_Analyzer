@@ -1,20 +1,10 @@
 import logging
 
+from common.logging_utils import configure_logging
 from .consumer import consume_messages
 
 
 logger = logging.getLogger(__name__)
-
-
-def configure_logging() -> None:
-    """
-    Configure root logging for the whole microservice.
-    This is called once from main() when the container starts.
-    """
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-    )
 
 
 def main() -> None:
@@ -24,7 +14,7 @@ def main() -> None:
         consume_messages()
     except KeyboardInterrupt:
         logger.info("Shutting down audio_extractor_service (keyboard interrupt).")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  
         logger.exception("audio_extractor_service crashed: %r", exc)
         raise
 

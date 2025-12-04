@@ -164,7 +164,7 @@ def consume_messages() -> None:
             except Exception:
                 pass
             sys.exit(0)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  
             logger.exception(
                 "Unexpected error in consumer loop: %r, retrying in 5 seconds...", exc
             )
