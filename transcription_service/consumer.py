@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import sys
 import time
 from typing import Any, Dict
@@ -11,7 +10,6 @@ from common.config import rabbitmq
 from .transcription_worker import process_audio_ready_message
 
 logger = logging.getLogger("transcription_service.consumer")
-
 
 def publish_transcription_ready_event(
     transcript_object_url: str,
@@ -58,7 +56,7 @@ def publish_transcription_ready_event(
 
     logger.info(
         "Published transcription_ready event to %s: %s",
-        RABBITMQ_TRANSCRIPTION_READY_QUEUE,
+        rabbitmq.transcription_ready_queue,
         payload,
     )
 
@@ -151,7 +149,7 @@ def consume_messages() -> None:
             # Log the listening on the audio_ready queue
             logger.info(
                 "Listening on queue %s. To exit, stop the container.",
-                RABBITMQ_AUDIO_READY_QUEUE,
+                rabbitmq.audio_ready_queue,
             )
             # Start consuming the messages from the audio_ready queue
             channel.start_consuming()

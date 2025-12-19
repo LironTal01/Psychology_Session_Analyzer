@@ -7,16 +7,11 @@ import time
 import pika
 
 from .audio_extractor import extract_and_upload_audio
+from common.config import rabbitmq
 
 
 logger = logging.getLogger(__name__)
 
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "user")
-RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "pass")
-RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "new_videos")
-AUDIO_READY_QUEUE = os.getenv("AUDIO_READY_QUEUE", "audio_ready")
 
 
 def handle_message(body: bytes) -> None:
@@ -74,10 +69,10 @@ def publish_audio_ready_event(
         "video_object_url": video_object_url,
     }
 
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
     parameters = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
+        host=rabbitmq.host,
+        port=rabbitmq.port,
         credentials=credentials,
     )
 
@@ -85,11 +80,11 @@ def publish_audio_ready_event(
     channel = connection.channel()
 
     # Ensure the queue exists (idempotent)
-    channel.queue_declare(queue=AUDIO_READY_QUEUE, durable=True)
+    channel.queue_declare(queue=rabbitmq.audio_ready_queue, durable=True)
 
     channel.basic_publish(
         exchange="",
-        routing_key=AUDIO_READY_QUEUE,
+        routing_key=rabbitmq.audio_ready_queue,
         body=json.dumps(payload).encode("utf-8"),
         properties=pika.BasicProperties(delivery_mode=2),
     )
@@ -98,7 +93,7 @@ def publish_audio_ready_event(
 
     logger.info(
         "Published audio_ready event to %s: %s",
-        AUDIO_READY_QUEUE,
+        rabbitmq.audio_ready_queue,
         payload,
     )
 
@@ -110,26 +105,26 @@ def consume_messages() -> None:
     """
     while True:
         try:
-            credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+            credentials = pika.PlainCredentials(rabbitmq.user, rabbitmq.password)
             parameters = pika.ConnectionParameters(
-                host=RABBITMQ_HOST,
-                port=RABBITMQ_PORT,
+                host=rabbitmq.host,
+                port=rabbitmq.port,
                 credentials=credentials,
                 heartbeat=30,
             )
 
             logger.info(
                 "Connecting to RabbitMQ at %s:%s, queue=%s",
-                RABBITMQ_HOST,
-                RABBITMQ_PORT,
-                RABBITMQ_QUEUE,
+                rabbitmq.host,
+                rabbitmq.port,
+                rabbitmq.new_videos_queue,
             )
 
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
 
             # Ensure the queue exists (idempotent)
-            channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
+            channel.queue_declare(queue=rabbitmq.new_videos_queue, durable=True)
 
             # Fair dispatch – one message at a time per worker
             channel.basic_qos(prefetch_count=1)
@@ -145,7 +140,7 @@ def consume_messages() -> None:
                     )
 
             channel.basic_consume(
-                queue=RABBITMQ_QUEUE,
+                queue=rabbitmq.new_videos_queue,
                 on_message_callback=_callback,
                 auto_ack=False,
             )
