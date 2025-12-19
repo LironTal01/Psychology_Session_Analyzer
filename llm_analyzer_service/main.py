@@ -11,7 +11,6 @@ logger = logging.getLogger("llm_analyzer_service.main")
 def main() -> None:
     """
     Entrypoint for the llm_analyzer_service container.
-
     - Configure logging.
     - Initialize the internal analysis database (e.g., create tables).
     - Start consuming messages from the 'transcription_ready' queue.

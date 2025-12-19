@@ -141,7 +141,7 @@ def _call_openai_for_text(
                 {"role": "user", "content": user_content},
             ],
         )
-    except Exception as exc:  
+    except Exception as exc:  # noqa: BLE001
         logger.exception("OpenAI call failed for session_id=%s: %r", session_id, exc)
         raise
  
@@ -175,7 +175,7 @@ def _merge_analyses(analyses: list[Dict[str, Any]], session_id: str) -> Dict[str
     seen_speakers = set()
     speakers_result = []
     # loop through each chunk and add the speakers to the result if they are not already in the result
-    for analysis in analyses: 
+    for analysis in analyses:
         for sp in (analysis.get("speakers") or []):
             key = (sp.get("id"), sp.get("role"), sp.get("description"))
             if key not in seen_speakers:

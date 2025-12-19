@@ -11,9 +11,6 @@ __pycache__/
 *.pdb
 *.so
 
-# Virtual environments
-venv/
-.venv/
 
 # Environment variables
 .env

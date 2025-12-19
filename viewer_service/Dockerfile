@@ -11,7 +11,8 @@ RUN apt-get update && \
 COPY viewer_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy shared common package and application code
+COPY common /app/common
 COPY viewer_service /app/viewer_service
 
 EXPOSE 8000
