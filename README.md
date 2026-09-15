@@ -2,7 +2,7 @@
 
 # Psychology Session Analyzer
 
-### Event-driven pipeline for turning authorized session recordings into structured, evidence-grounded insights
+### Event-driven microservices for asynchronous audio processing, diarized transcription, and structured LLM analysis
 
 <p>
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11">
@@ -16,13 +16,13 @@
 
 ## Overview
 
-Psychology Session Analyzer is an event-driven Python system that processes an authorized recorded session from upload to structured analysis. It separates the workflow into independently deployable services, uses RabbitMQ for asynchronous handoffs, and persists artifacts and results at each stage.
+Psychology Session Analyzer is an event-driven Python system that turns an authorized recording into a structured, evidence-grounded analysis. Independently deployable services communicate through RabbitMQ, while object storage, caching, and durable persistence keep each processing stage isolated and observable.
 
-The pipeline extracts audio from an uploaded video, transcribes it with speaker diarization, generates a structured LLM analysis, and exposes completed results through a read-only FastAPI viewer and a lightweight browser dashboard.
+The pipeline extracts audio from an uploaded video, transcribes it with speaker diarization, produces JSON-constrained LLM insights, and exposes completed results through a read-only FastAPI API and dashboard.
 
 > **Educational project, not a clinical product.** This system is not designed or validated for diagnosis, treatment, or clinical decision-making. It must only be used with synthetic, public, or explicitly authorized recordings that contain no personally identifiable health information.
 
-## What it demonstrates
+## Engineering highlights
 
 | System design | AI pipeline | Product surface |
 | :--- | :--- | :--- |
@@ -31,32 +31,25 @@ The pipeline extracts audio from an uploaded video, transcribes it with speaker 
 ## Pipeline architecture
 
 ```mermaid
-flowchart LR
-    U["Authorized sample recording"] --> UP["Upload service\nFastAPI"]
-    UP --> V["MinIO\nvideo object storage"]
-    UP --> Q1["new_videos"]
-    Q1 --> AE["Audio extractor\nffmpeg"]
-    AE --> A["MinIO\naudio objects"]
-    AE --> Q2["audio_ready"]
-    Q2 --> TS["Transcription service\nAssemblyAI diarization"]
-    TS --> T["MinIO\ntranscript JSON"]
-    TS --> Q3["transcription_ready"]
-    Q3 --> LA["LLM analyzer\nOpenAI"]
-    LA <--> R["Redis\nanalysis cache"]
+flowchart TB
+    U["Authorized sample recording"] --> UP["Upload API\nFastAPI"]
+    UP -->|"new_videos"| AE["Audio extraction\nffmpeg"]
+    AE -->|"audio_ready"| TS["Transcription\nAssemblyAI diarization"]
+    TS -->|"transcription_ready"| LA["LLM analyzer\nOpenAI"]
     LA --> DB["PostgreSQL\nanalysis records"]
-    LA --> M["MinIO\nanalysis JSON"]
-    DB --> VS["Viewer service\nFastAPI + dashboard"]
+    DB --> VS["Viewer API + dashboard"]
     VS --> B["Browser or API client"]
-    DD["DataDog"] -. container logs .-> UP
-    DD -. container logs .-> AE
-    DD -. container logs .-> TS
-    DD -. container logs .-> LA
-    DD -. container logs .-> VS
+
+    UP -. "video" .-> S["MinIO object storage"]
+    AE -. "audio" .-> S
+    TS -. "transcript JSON" .-> S
+    LA -. "analysis JSON" .-> S
+    LA <--> R["Redis cache"]
 ```
 
 The analyzer also emits an `analysis_ready` event after persistence, leaving a clean integration point for future notifications or downstream reporting.
 
-## Analysis output
+## Structured analysis
 
 The LLM stage returns a constrained JSON document instead of free-form text. Depending on the content of an authorized sample, it can include:
 
@@ -158,6 +151,7 @@ For local-only development, Docker Compose supplies the bundled MinIO, RabbitMQ,
 - Do not expose this local development setup directly to the internet.
 - This repository intentionally contains no recordings, transcripts, or API keys.
 
-## Background
+## Author
 
-Built as part of the **Advanced Systems Development Using AI** course at Reichman University. The assignment required an event-driven, Dockerized microservices system in Python with RabbitMQ, MinIO, FastAPI, centralized logging, transcription with speaker diarization, LLM analysis, caching, and a results API.
+**Liron Tal**  
+B.Sc. in Computer Science, Reichman University
