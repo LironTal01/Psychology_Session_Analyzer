@@ -26,16 +26,19 @@ From one upload, the system extracts audio, transcribes it with speaker diarizat
 
 ```mermaid
 flowchart TB
-    UP["1. Upload service\nFastAPI + MinIO"]
-    AE["2. Audio extractor\nffmpeg"]
-    TS["3. Transcription\nAssemblyAI diarization"]
-    LA["4. LLM analyzer\nOpenAI structured JSON"]
-    VS["5. Viewer service\nFastAPI + local dashboard"]
+    U["Authorized sample recording"] --> UP["Upload API\nFastAPI"]
+    UP -->|"new_videos"| AE["Audio extraction\nffmpeg"]
+    AE -->|"audio_ready"| TS["Transcription\nAssemblyAI diarization"]
+    TS -->|"transcription_ready"| LA["LLM analyzer\nOpenAI"]
+    LA --> DB["PostgreSQL\nanalysis records"]
+    DB --> VS["Viewer API + dashboard"]
+    VS --> B["Browser or API client"]
 
-    UP -->|"new_videos"| AE
-    AE -->|"audio_ready"| TS
-    TS -->|"transcription_ready"| LA
-    LA -->|"persisted results"| VS
+    UP -. "video" .-> S["MinIO object storage"]
+    AE -. "audio" .-> S
+    TS -. "transcript JSON" .-> S
+    LA -. "analysis JSON" .-> S
+    LA <--> R["Redis cache"]
 ```
 
 **Supporting infrastructure:** RabbitMQ carries durable events between services; MinIO stores video, audio, transcript, and analysis artifacts; Redis avoids redundant LLM work; PostgreSQL stores completed analyses; the optional DataDog profile collects container logs.
@@ -138,7 +141,7 @@ curl -X POST http://localhost:8000/upload \
 
 The upload endpoint returns after storage and event publication. Processing continues asynchronously, so refresh the viewer after the downstream services complete their work.
 
-## Repository map
+## Project structure
 
 ```text
 .
