@@ -206,6 +206,7 @@ services:
   # DataDog Agent (collect logs & metrics)
   # ------------------------------------------------------
   datadog:
+    profiles: ["observability"]
     image: gcr.io/datadoghq/agent:latest
     container_name: datadog
     environment:
